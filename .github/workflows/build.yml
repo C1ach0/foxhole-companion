@@ -8,7 +8,23 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            script: build:windows
+            artifact: foxpile-companion-windows
+            output: dist/foxpile-companion.exe
+          - os: macos-latest
+            script: build:mac
+            artifact: foxpile-companion-macos
+            output: dist/foxpile-companion-macos
+          - os: ubuntu-latest
+            script: build:linux
+            artifact: foxpile-companion-linux
+            output: dist/foxpile-companion-linux
+
+    runs-on: ${{ matrix.os }}
 
     defaults:
       run:
@@ -56,10 +72,10 @@ jobs:
         run: npm ci
 
       - name: Build binary
-        run: npm run build
+        run: npm run ${{ matrix.script }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: foxpile-companion
-          path: dist/foxpile-companion.exe
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.output }}
