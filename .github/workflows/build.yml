@@ -1,0 +1,65 @@
+name: Build companion
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        working-directory: .
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Generate build config
+        shell: pwsh
+        env:
+          FOXPILE_GAME_PROCESS: ${{ secrets.FOXPILE_GAME_PROCESS }}
+          FOXPILE_API_URL: ${{ secrets.FOXPILE_API_URL }}
+          FOXPILE_COMPANION_ID: ${{ secrets.FOXPILE_COMPANION_ID }}
+          FOXPILE_COMPANION_SECRET: ${{ secrets.FOXPILE_COMPANION_SECRET }}
+          FOXPILE_COMPANION_SKEW_MS: ${{ secrets.FOXPILE_COMPANION_SKEW_MS }}
+        run: |
+          @'
+          const fs = require("node:fs");
+
+          const values = {
+            FOXPILE_GAME_PROCESS: process.env.FOXPILE_GAME_PROCESS || "",
+            FOXPILE_API_URL: process.env.FOXPILE_API_URL || "",
+            FOXPILE_COMPANION_ID: process.env.FOXPILE_COMPANION_ID || "",
+            FOXPILE_COMPANION_SECRET: process.env.FOXPILE_COMPANION_SECRET || "",
+            FOXPILE_COMPANION_SKEW_MS: process.env.FOXPILE_COMPANION_SKEW_MS || "",
+          };
+
+          const content = Object.entries(values)
+            .map(([key, value]) => `export const ${key} = ${JSON.stringify(value)};`)
+            .join("\n");
+
+          fs.writeFileSync("src/generated-config.js", content + "\n");
+          '@ | node
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build binary
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: foxpile-companion
+          path: dist/foxpile-companion.exe

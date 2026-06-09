@@ -1,0 +1,23 @@
+{
+  "name": "foxpile-companion",
+  "version": "1.0.0",
+  "description": "A simple system-tray companion to collect informations about stockpile in Foxhole Game",
+  "license": "ISC",
+  "author": "C1ach0",
+  "type": "module",
+  "main": "index.js",
+  "bin": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "build": "pkg . --targets node18-win-x64 --output dist/foxpile-companion.exe",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "chokidar": "^5.0.0",
+    "node-notifier": "^10.0.1",
+    "open": "^11.0.0",
+    "pkg": "^5.8.1",
+    "ps-list": "^9.0.0",
+    "systray2": "^2.1.4"
+  }
+}
