@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node index.js",
     "build": "npm run build:windows",
-    "build:windows": "nexe index.js --target windows-x64-20.0.0 --resource \"assets/**/*\" --output dist/foxpile-companion.exe",
+    "build:windows": "nexe index.js --target windows-x64-18.17.0 --resource \"assets/**/*\" --output dist/foxpile-companion.exe",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
