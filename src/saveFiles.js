@@ -4,6 +4,14 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { SAVE_DIR } from "./config.js";
 
+export class SaveDirectoryMissingError extends Error {
+  constructor() {
+    super("Foxhole save directory is not available");
+    this.name = "SaveDirectoryMissingError";
+    this.code = "FOXPILE_SAVE_DIR_MISSING";
+  }
+}
+
 export async function calculateFileHash(filePath) {
   return await new Promise((resolve, reject) => {
     const hash = crypto.createHash("sha256");
@@ -43,19 +51,31 @@ export async function listSaveFiles() {
       }),
     ).then((files) => files.filter(Boolean));
   } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw new SaveDirectoryMissingError();
+    }
+
     console.error("Failed to read SaveGames:", error);
     return [];
   }
 }
 
 export async function getSteamId() {
-  const files = await fs.readdir(SAVE_DIR);
+  try {
+    const files = await fs.readdir(SAVE_DIR);
 
-  const userSave = files.find((file) => /^\d+\.sav$/i.test(file));
+    const userSave = files.find((file) => /^\d+\.sav$/i.test(file));
 
-  if (!userSave) {
-    return null;
+    if (!userSave) {
+      return null;
+    }
+
+    return userSave.replace(/\.sav$/i, "");
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw new SaveDirectoryMissingError();
+    }
+
+    throw error;
   }
-
-  return userSave.replace(/\.sav$/i, "");
 }

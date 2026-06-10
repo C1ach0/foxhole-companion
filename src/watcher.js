@@ -1,7 +1,8 @@
 import chokidar from 'chokidar';
 import path from 'node:path';
-import { SAVE_DIR } from './config.js';
-import { getSaveFileInfo, listSaveFiles } from './saveFiles.js';
+import { APP_NAME, SAVE_DIR } from './config.js';
+import { notify } from './notifier.js';
+import { SaveDirectoryMissingError, getSaveFileInfo, listSaveFiles } from './saveFiles.js';
 import { syncSaveFileMetadata } from './sendFiles.js';
 
 let watcher = null;
@@ -16,16 +17,25 @@ function forgetSaveFile(fileName) {
 }
 
 async function initializeSaveFileCache() {
-  const files = await listSaveFiles();
+  try {
+    const files = await listSaveFiles();
 
-  saveFilesByName.clear();
+    saveFilesByName.clear();
 
-  for (const fileInfo of files) {
-    rememberSaveFile(fileInfo);
-    await syncSaveFileMetadata(fileInfo, 'initial');
+    for (const fileInfo of files) {
+      rememberSaveFile(fileInfo);
+      await syncSaveFileMetadata(fileInfo, 'initial');
+    }
+
+    return files;
+  } catch (error) {
+    if (error instanceof SaveDirectoryMissingError || error?.code === "FOXPILE_SAVE_DIR_MISSING") {
+      notify(APP_NAME, "Launch Foxhole before scanning save files.");
+      return [];
+    }
+
+    throw error;
   }
-
-  return files;
 }
 
 async function handleFileAddedOrChanged(filePath, eventType) {

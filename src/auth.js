@@ -1,7 +1,7 @@
 import open from "open";
 import { API_URL, APP_NAME } from "./config.js";
 import { notify } from "./notifier.js";
-import { getSteamId } from "./saveFiles.js";
+import { SaveDirectoryMissingError, getSteamId } from "./saveFiles.js";
 import { setDiscordUser } from "./tray.js";
 
 const POLLING_INTERVAL = 2000;
@@ -45,6 +45,11 @@ export async function connectToDiscord() {
 
     startDiscordLinkPolling(linkId);
   } catch (error) {
+    if (error instanceof SaveDirectoryMissingError || error?.code === "FOXPILE_SAVE_DIR_MISSING") {
+      notify(APP_NAME, "Launch Foxhole before linking Discord.");
+      return;
+    }
+
     console.error(error);
     notify(APP_NAME, "Failed to start Discord linking.");
   }
