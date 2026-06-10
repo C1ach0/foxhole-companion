@@ -1,6 +1,5 @@
 import path from "node:path";
 import os from "node:os";
-import { fileURLToPath } from "node:url";
 import {
   FOXPILE_API_URL as BUILT_API_URL,
   FOXPILE_COMPANION_ID as BUILT_COMPANION_ID,
@@ -8,6 +7,10 @@ import {
   FOXPILE_COMPANION_SKEW_MS as BUILT_COMPANION_SKEW_MS,
   FOXPILE_GAME_PROCESS as BUILT_GAME_PROCESS,
 } from "./generated-config.js";
+import { resolveAssetPath } from "./assets.js";
+
+export const APP_NAME = "Foxpile Companion";
+export const APP_USER_MODEL_ID = "C1ach0.FoxpileCompanion";
 
 function pickConfigValue(envName, builtValue, fallback) {
   if (process.env[envName] !== undefined && process.env[envName] !== "") {
@@ -21,18 +24,18 @@ function pickConfigValue(envName, builtValue, fallback) {
   return fallback;
 }
 
-export function getFoxpileDataDir() {
+export function getAppDataDir(appName = APP_NAME) {
   if (process.platform === "win32") {
-    return path.join(process.env.LOCALAPPDATA, "Foxpile");
+    return path.join(process.env.LOCALAPPDATA, appName);
   }
 
   if (process.platform === "darwin") {
-    return path.join(os.homedir(), "Library", "Application Support", "Foxpile");
+    return path.join(os.homedir(), "Library", "Application Support", appName);
   }
 
   return path.join(
     process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
-    "Foxpile",
+    appName,
   );
 }
 
@@ -65,7 +68,7 @@ export const COMPANION_SKEW_MS = Number(
 );
 
 export const SAVE_DIR = path.join(
-  getFoxpileDataDir(),
+  getAppDataDir(),
   "Foxhole",
   "Saved",
   "SaveGames",
@@ -73,9 +76,6 @@ export const SAVE_DIR = path.join(
 
 export const CHECK_INTERVAL = 3000;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-export const ICON_PATH =
-  process.platform === "win32"
-    ? path.join(__dirname, "..", "assets", "foxpile-icon.ico")
-    : path.join(__dirname, "..", "assets", "foxpile-icon.png");
+export const ICON_PATH = resolveAssetPath(
+  process.platform === "win32" ? "foxpile-icon.ico" : "foxpile-icon.png",
+);

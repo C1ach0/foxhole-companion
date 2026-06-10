@@ -1,13 +1,21 @@
+import minimist from "minimist";
+
 import { createTray } from './tray.js';
 
-import { CHECK_INTERVAL } from './config.js';
+import { APP_NAME, CHECK_INTERVAL } from './config.js';
 import { notify } from './notifier.js';
 import { isGameRunning } from './gameDetector.js';
-import { listSaveFiles } from './saveFiles.js';
-import { getWatchedSaveFiles, startWatcher, stopWatcher } from './watcher.js';
+import { startWatcher, stopWatcher } from './watcher.js';
 
 let gameRunning = false;
 let checking = false;
+const argv = minimist(process.argv.slice(2), {
+  boolean: ["debug"],
+  alias: {
+    d: "debug",
+  },
+});
+const debugMode = Boolean(argv.debug);
 
 async function handleGameStarted() {
   gameRunning = true;
@@ -16,7 +24,7 @@ async function handleGameStarted() {
     `${new Date().toISOString()} - Foxhole detected`
   );
 
-  const files = await startWatcher();
+  await startWatcher();
 }
 
 async function handleGameStopped() {
@@ -29,8 +37,8 @@ async function handleGameStopped() {
   await stopWatcher();
 
   notify(
-    'Foxhole Companion',
-    'Foxhole closed - Thanks for using Foxhole Companion! See you next time.'
+    APP_NAME,
+    `Foxhole closed - Thanks for using ${APP_NAME}! See you next time.`
   );
 }
 
@@ -59,15 +67,11 @@ async function checkProcesses() {
 }
 
 async function main() {
-  await createTray(async () => {
-    const files = gameRunning
-      ? getWatchedSaveFiles()
-      : await listSaveFiles();
+  await createTray({ debug: debugMode });
 
-    notify(
-      'Foxhole Companion'
-    );
-  });
+  if (debugMode) {
+    console.log(`${APP_NAME} debug mode enabled`);
+  }
 
   await checkProcesses();
 

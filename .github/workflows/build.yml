@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 24
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -55,6 +55,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y --no-progress
+          }
+
       - name: Build binary
         run: npm run build:windows
 
@@ -62,4 +69,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: foxpile-companion-windows
-          path: dist/foxpile-companion.exe
+          path: dist/installer/*.exe

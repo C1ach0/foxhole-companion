@@ -1,10 +1,25 @@
-import psList from 'ps-list';
-import { GAME_PROCESS } from './config.js';
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { GAME_PROCESS } from "./config.js";
+
+const execFileAsync = promisify(execFile);
 
 export async function isGameRunning() {
-  const processes = await psList();
+  if (process.platform !== "win32") {
+    return false;
+  }
 
-  return processes.some(
-    p => p.name?.toLowerCase() === GAME_PROCESS
-  );
+  const { stdout } = await execFileAsync("tasklist", [
+    "/FO",
+    "CSV",
+    "/NH",
+    "/FI",
+    `IMAGENAME eq ${GAME_PROCESS}`,
+  ]);
+
+  return stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .some((line) => line.toLowerCase().startsWith(`"${GAME_PROCESS.toLowerCase()}"`));
 }

@@ -1,10 +1,7 @@
 # Foxpile Companion
 
 Foxpile Companion is the desktop client that watches Foxhole save files, builds trusted metadata, and sends
-only signed updates to the Foxpile API.
-
-This project is intentionally split from the private API. The companion repository is public-facing and
-contains only the client code; the API stays in its own private repository.
+signed updates to the Foxpile API.
 
 ## What it does
 
@@ -19,21 +16,12 @@ contains only the client code; the API stays in its own private repository.
 The API accepts uploads only when the request is signed with the companion secret and matches the expected
 companion identity.
 
-That means:
-
-- unofficial binaries are not supported
-- custom local builds will not be able to talk to the API unless they have the official signing values
-- the official build pipeline is the only supported way to produce a working release
-
-In practice, the secret is injected by GitHub Actions during the release build. If the secret is missing,
-the companion cannot sign requests and the API will reject the upload.
-
 ## Configuration
 
-The companion resolves its runtime values in this order:
+Runtime values are resolved in this order:
 
 1. environment variables
-2. `src/generated-config.js` produced by the GitHub build
+2. `src/generated-config.js` produced by the build
 3. local development defaults
 
 Required values:
@@ -47,42 +35,25 @@ Optional values:
 - `FOXPILE_COMPANION_SKEW_MS`
 - `FOXPILE_GAME_PROCESS`
 
-## Official build
+## Build
 
-For releases, GitHub Actions generates `src/generated-config.js` from repository secrets and builds the
-Windows binary from that configuration.
+- `npm run dev` launches Foxpile Companion in debug mode from `cmd`
+- `npm run build:windows` builds the Windows SEA executable and installer
 
-Recommended secrets:
+The Windows build uses:
 
-- `FOXPILE_API_URL`
-- `FOXPILE_COMPANION_ID`
-- `FOXPILE_COMPANION_SECRET`
-- `FOXPILE_COMPANION_SKEW_MS`
-- `FOXPILE_GAME_PROCESS`
+- Node 24
+- Node SEA
+- rcedit
+- Inno Setup
 
-## Local development
+## Local development data
 
-Copy `.env.example` to `.env` and fill in your test values.
+Windows stores local connection state in:
 
-Local builds are useful for development, but they are not the official release path.
+`%LOCALAPPDATA%\Foxpile Companion\discord-connection.json`
 
-## Discord connection storage
-
-When a user links Discord, the companion stores the local connection state in:
-
-Windows:
-`%LOCALAPPDATA%\Foxpile\discord-connection.json`
-
-macOS:
-`~/Library/Application Support/Foxpile/discord-connection.json`
-
-Linux:
-`~/.config/Foxpile/discord-connection.json`
-
-On the next startup, the companion reloads that file and restores the linked Discord state so the user
-does not need to repeat the link flow.
-
-Clicking the Discord entry in the tray again unlinks the account and removes the local file.
+An older `Foxpile` folder is migrated automatically when present.
 
 ## Support
 

@@ -1,22 +1,38 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { getFoxpileDataDir } from "./config.js";
+import { getAppDataDir } from "./config.js";
 
-const STATE_DIR = getFoxpileDataDir();
+const STATE_DIR = getAppDataDir();
+const LEGACY_STATE_DIR = getAppDataDir("Foxpile");
 const STATE_FILE = path.join(STATE_DIR, "discord-connection.json");
+const LEGACY_STATE_FILE = path.join(LEGACY_STATE_DIR, "discord-connection.json");
+
+async function readConnection(filePath) {
+  const raw = await fs.readFile(filePath, "utf8");
+  return JSON.parse(raw);
+}
 
 export async function loadDiscordConnection() {
   try {
-    const raw = await fs.readFile(STATE_FILE, "utf8");
-    return JSON.parse(raw);
+    return await readConnection(STATE_FILE);
   } catch (error) {
-    if (error?.code === "ENOENT") {
-      return null;
+    if (error?.code !== "ENOENT") {
+      console.error("Failed to load Discord connection state:", error);
     }
-
-    console.error("Failed to load Discord connection state:", error);
-    return null;
   }
+
+  try {
+    const legacyConnection = await readConnection(LEGACY_STATE_FILE);
+    await saveDiscordConnection(legacyConnection);
+
+    return legacyConnection;
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      console.error("Failed to load legacy Discord connection state:", error);
+    }
+  }
+
+  return null;
 }
 
 export async function saveDiscordConnection(connection) {

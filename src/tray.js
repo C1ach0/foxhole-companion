@@ -2,7 +2,8 @@ import SysTrayImport from "systray2";
 import open from "open";
 
 import { connectToDiscord } from "./auth.js";
-import { ICON_PATH } from "./config.js";
+import { APP_NAME, ICON_PATH } from "./config.js";
+import { ensureTrayBinary } from "./trayBinary.js";
 import {
   clearDiscordConnection,
   loadDiscordConnection,
@@ -74,21 +75,23 @@ function buildMenu() {
     SysTray.separator,
     {
       title: "Exit",
-      tooltip: "Exit Foxpile",
+      tooltip: `Exit ${APP_NAME}`,
       enabled: true,
     },
   ];
 }
 
-export async function createTray() {
+export async function createTray({ debug = false } = {}) {
+  await ensureTrayBinary();
+
   tray = new SysTray({
     menu: {
       icon: ICON_PATH,
-      title: "Foxpile",
-      tooltip: "Foxhole Companion",
+      title: APP_NAME,
+      tooltip: APP_NAME,
       items: buildMenu(),
     },
-    debug: false,
+    debug,
     copyDir: false,
   });
 

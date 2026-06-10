@@ -1,5 +1,5 @@
 import open from "open";
-import { API_URL } from "./config.js";
+import { API_URL, APP_NAME } from "./config.js";
 import { notify } from "./notifier.js";
 import { getSteamId } from "./saveFiles.js";
 import { setDiscordUser } from "./tray.js";
@@ -12,11 +12,11 @@ export async function connectToDiscord() {
     const steamId = await getSteamId();
 
     if (!steamId) {
-      notify("Foxhole Companion", "Unable to detect your Steam account.");
+      notify(APP_NAME, "Unable to detect your Steam account.");
       return;
     }
 
-    notify("Foxhole Companion", "Preparing Discord account linking...");
+    notify(APP_NAME, "Preparing Discord account linking...");
 
     const response = await fetch(`${API_URL}/auth/discord/link`, {
       method: "POST",
@@ -35,18 +35,18 @@ export async function connectToDiscord() {
 
     const { linkId, oauthUrl } = await response.json();
 
-    notify("Foxhole Companion", "Opening Discord authorization page...");
+    notify(APP_NAME, "Opening Discord authorization page...");
     await open(oauthUrl);
 
     notify(
-      "Foxhole Companion",
+      APP_NAME,
       "Please complete the authorization in your browser.",
     );
 
     startDiscordLinkPolling(linkId);
   } catch (error) {
     console.error(error);
-    notify("Foxhole Companion", "Failed to start Discord linking.");
+    notify(APP_NAME, "Failed to start Discord linking.");
   }
 }
 
@@ -58,7 +58,7 @@ export function startDiscordLinkPolling(linkId) {
       if (Date.now() - startedAt > POLLING_TIMEOUT) {
         clearInterval(interval);
 
-        notify("Foxhole Companion", "Discord linking timed out.");
+        notify(APP_NAME, "Discord linking timed out.");
 
         return;
       }
@@ -78,19 +78,19 @@ export function startDiscordLinkPolling(linkId) {
 
         case "completed":
           clearInterval(interval);
-          notify("Foxhole Companion", "Discord account linked successfully.");
+          notify(APP_NAME, "Discord account linked successfully.");
           console.log("Discord linked:", link);
           await setDiscordUser(link.discordUsername ?? "Linked");
           break;
 
         case "expired":
           clearInterval(interval);
-          notify("Foxhole Companion", "Discord linking request expired.");
+          notify(APP_NAME, "Discord linking request expired.");
           break;
 
         case "failed":
           clearInterval(interval);
-          notify("Foxhole Companion", "Discord linking failed.");
+          notify(APP_NAME, "Discord linking failed.");
           break;
       }
     } catch (error) {
