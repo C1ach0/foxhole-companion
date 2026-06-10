@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createRequire } from "node:module";
 
-const require = createRequire(path.join(process.cwd(), "index.js"));
 const sourceTrayBinary = path.join(
-  path.dirname(require.resolve("systray2/package.json")),
+  process.cwd(),
+  "node_modules",
+  "systray2",
   "traybin",
   "tray_windows_release.exe",
 );
