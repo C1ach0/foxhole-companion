@@ -68,7 +68,9 @@ export const COMPANION_SKEW_MS = Number(
 );
 
 export const SAVE_DIR = path.join(
-  getAppDataDir(),
+  process.platform === "win32"
+    ? path.join(os.homedir(), "AppData", "Local")
+    : getAppDataDir(),
   "Foxhole",
   "Saved",
   "SaveGames",
