@@ -13,18 +13,17 @@ const installerDir = path.join(distDir, "installer");
 const bundlePath = path.join(distDir, "foxpile-companion.bundle.js");
 const seaConfigPath = path.join(distDir, "sea-config.json");
 const seaBlobPath = path.join(distDir, "foxpile-companion.blob");
-const payloadExePath = path.join(distDir, "Foxpile Companion.core.exe");
-const launcherExePath = path.join(distDir, "Foxpile Companion.exe");
+const appExePath = path.join(distDir, "Foxpile Companion.exe");
 const updaterExePath = path.join(distDir, "Foxpile Companion Updater.exe");
 const packageJsonPath = path.join(rootDir, "package.json");
 const traybinSource = path.join(path.dirname(require.resolve("systray2/package.json")), "traybin");
 const traybinTarget = path.join(distDir, "traybin");
 const iconPath = path.join(rootDir, "assets", "foxpile-icon.ico");
 const postjectCli = path.join(path.dirname(require.resolve("postject/package.json")), "dist", "cli.js");
-const launcherSource = path.join(rootDir, "tools", "windows-launcher.go");
 const updaterSource = path.join(rootDir, "tools", "windows-updater.go");
 const goVersionInfoPackage =
   "github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0";
+const seaFuse = "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2";
 const skipInstaller =
   process.env.FOXPILE_SKIP_INSTALLER === "1" || process.argv.includes("--skip-installer");
 
@@ -46,6 +45,92 @@ function run(command, args, options = {}) {
       reject(new Error(`${command} exited with code ${code}`));
     });
   });
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function createWindowsSea(packageJson, versionStrings) {
+  const injectionArguments = [
+    postjectCli,
+    appExePath,
+    "NODE_SEA_BLOB",
+    seaBlobPath,
+    "--sentinel-fuse",
+    seaFuse,
+  ];
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await fs.rm(appExePath, { force: true });
+    await fs.copyFile(process.execPath, appExePath);
+
+    await rcedit(appExePath, {
+      icon: iconPath,
+      "file-version": packageJson.version,
+      "product-version": packageJson.version,
+      "requested-execution-level": "asInvoker",
+      "version-string": {
+        ...versionStrings,
+        FileDescription: packageJson.productName,
+        InternalName: "foxpile-companion",
+        OriginalFilename: "Foxpile Companion.exe",
+      },
+    });
+
+    // Windows security scanners can briefly retain the PE after rcedit exits.
+    await delay(attempt * 500);
+
+    try {
+      await run(process.execPath, injectionArguments, { cwd: rootDir });
+      return;
+    } catch (error) {
+      if (attempt === 3) {
+        throw error;
+      }
+
+      console.warn(`SEA injection attempt ${attempt} failed; retrying`);
+      await delay(attempt * 1_000);
+    }
+  }
+}
+
+async function markAsWindowsGui(executablePath) {
+  const executable = await fs.readFile(executablePath);
+  const peHeaderOffset = executable.readUInt32LE(0x3c);
+
+  if (executable.toString("ascii", peHeaderOffset, peHeaderOffset + 4) !== "PE\0\0") {
+    throw new Error(`${executablePath} is not a valid PE executable`);
+  }
+
+  const optionalHeaderOffset = peHeaderOffset + 4 + 20;
+  const optionalHeaderMagic = executable.readUInt16LE(optionalHeaderOffset);
+  if (optionalHeaderMagic !== 0x10b && optionalHeaderMagic !== 0x20b) {
+    throw new Error(
+      `${executablePath} has an unsupported PE optional header (0x${optionalHeaderMagic.toString(16)})`,
+    );
+  }
+
+  const subsystemOffset = optionalHeaderOffset + 0x44;
+  executable.writeUInt16LE(2, subsystemOffset);
+  await fs.writeFile(executablePath, executable);
+}
+
+async function verifyWindowsSea(executablePath) {
+  const executable = await fs.readFile(executablePath);
+  const peHeaderOffset = executable.readUInt32LE(0x3c);
+  const optionalHeaderOffset = peHeaderOffset + 4 + 20;
+  const subsystem = executable.readUInt16LE(optionalHeaderOffset + 0x44);
+
+  if (subsystem !== 2) {
+    throw new Error(
+      `${executablePath} is not a Windows GUI executable (subsystem ${subsystem})`,
+    );
+  }
+
+  if (!executable.includes(Buffer.from(`${seaFuse}:1`))) {
+    throw new Error(`${executablePath} does not contain an injected SEA blob`);
+  }
 }
 
 async function buildGoExecutable({
@@ -148,14 +233,18 @@ async function main() {
   await fs.rm(distDir, { recursive: true, force: true });
   await fs.mkdir(distDir, { recursive: true });
   await fs.mkdir(installerDir, { recursive: true });
-  await fs.cp(traybinSource, traybinTarget, { recursive: true });
+  await fs.mkdir(traybinTarget, { recursive: true });
+  await fs.copyFile(
+    path.join(traybinSource, "tray_windows_release.exe"),
+    path.join(traybinTarget, "tray_windows_release.exe"),
+  );
   await fs.copyFile(
     path.join(traybinSource, "tray_windows_release.exe"),
     path.join(traybinTarget, "tray_windows.exe"),
   );
 
   await esbuild.build({
-    entryPoints: [path.join(rootDir, "index.js")],
+    entryPoints: [path.join(rootDir, "index.ts")],
     bundle: true,
     format: "cjs",
     platform: "node",
@@ -193,36 +282,10 @@ async function main() {
     cwd: rootDir,
   });
 
-  await fs.copyFile(process.execPath, payloadExePath);
+  await createWindowsSea(packageJson, versionStrings);
 
-  await rcedit(payloadExePath, {
-    icon: iconPath,
-    "file-version": packageJson.version,
-    "product-version": packageJson.version,
-    "requested-execution-level": "asInvoker",
-    "version-string": {
-      ...versionStrings,
-      FileDescription: packageJson.productName,
-      InternalName: "foxpile-companion",
-      OriginalFilename: "Foxpile Companion.core.exe",
-    },
-  });
-
-  await run(process.execPath, [postjectCli, payloadExePath, "NODE_SEA_BLOB", seaBlobPath, "--sentinel-fuse", "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2"], {
-    cwd: rootDir,
-  });
-
-  await buildGoExecutable({
-    source: launcherSource,
-    output: launcherExePath,
-    buildName: "launcher",
-    version: packageJson.version,
-    productName: packageJson.productName,
-    author: packageJson.author,
-    description: `${packageJson.productName} Launcher`,
-    internalName: "foxpile-companion-launcher",
-    originalFilename: "Foxpile Companion.exe",
-  });
+  await markAsWindowsGui(appExePath);
+  await verifyWindowsSea(appExePath);
 
   await buildGoExecutable({
     source: updaterSource,
@@ -236,10 +299,6 @@ async function main() {
     originalFilename: "Foxpile Companion Updater.exe",
   });
 
-  await fs.rm(path.join(distDir, ".build-launcher"), {
-    recursive: true,
-    force: true,
-  });
   await fs.rm(path.join(distDir, ".build-updater"), {
     recursive: true,
     force: true,

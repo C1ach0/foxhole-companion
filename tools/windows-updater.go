@@ -18,7 +18,7 @@ const (
 	seeMaskNoCloseProcess = 0x00000040
 	showNormal            = 1
 	synchronize           = 0x00100000
-	updateInstallerParams = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS"
+	updateInstallerParams = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /NORESTARTAPPLICATIONS"
 )
 
 var (
@@ -115,9 +115,9 @@ func writeResult(markerPath, version string, exitCode uint32, success bool) {
 	_ = os.WriteFile(markerPath, content, 0o600)
 }
 
-func restartCompanion(launcherPath string) {
-	command := exec.Command("explorer.exe", launcherPath)
-	command.Dir = filepath.Dir(launcherPath)
+func restartCompanion(companionPath string) {
+	command := exec.Command("explorer.exe", companionPath)
+	command.Dir = filepath.Dir(companionPath)
 	_ = command.Start()
 }
 
@@ -126,10 +126,16 @@ func main() {
 	installerPath := flag.String("installer", "", "Downloaded installer path")
 	version := flag.String("version", "", "Version being installed")
 	markerPath := flag.String("marker", "", "Update result marker path")
-	launcherPath := flag.String("launcher", "", "Companion launcher path")
+	launcherPath := flag.String("launcher", "", "Companion executable path")
+	companionPath := flag.String("companion", "", "Companion executable path")
 	flag.Parse()
 
-	if *installerPath == "" || *markerPath == "" || *launcherPath == "" {
+	restartPath := *companionPath
+	if restartPath == "" {
+		restartPath = *launcherPath
+	}
+
+	if *installerPath == "" || *markerPath == "" || restartPath == "" {
 		os.Exit(2)
 	}
 
@@ -139,7 +145,7 @@ func main() {
 
 	exitCode, success := runInstaller(*installerPath)
 	writeResult(*markerPath, *version, exitCode, success)
-	restartCompanion(*launcherPath)
+	restartCompanion(restartPath)
 
 	if !success {
 		os.Exit(1)

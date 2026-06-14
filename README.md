@@ -21,7 +21,7 @@ companion identity.
 Runtime values are resolved in this order:
 
 1. environment variables
-2. `src/generated-config.js` produced by the build
+2. `src/core/generated-config.ts` produced by the build
 3. local development defaults
 
 Required values:
@@ -38,16 +38,46 @@ Optional values:
 ## Build
 
 - `npm run dev` launches Foxpile Companion in debug mode from `cmd`
-- `npm run build:windows` builds the Windows GUI launcher, updater, SEA payload, and installer
+- `npm run build:windows` builds the Windows GUI SEA, updater, and installer
+
+## Source layout
+
+- `src/app`: application lifecycle and single-instance handling
+- `src/auth`: Discord authentication and persisted connection state
+- `src/core`: configuration, runtime helpers, logging, errors, and shared types
+- `src/game`: Foxhole process detection
+- `src/saves`: save discovery, watching, validation, and upload
+- `src/ui`: tray, Windows notifications, and startup settings
+- `src/updates`: release selection, download verification, and updater launch
 
 The Windows build uses:
 
+- TypeScript
 - Node 24
 - Node SEA
-- a small GUI launcher
+- a GUI subsystem patch applied to the final SEA executable
 - a standalone Windows updater
 - rcedit
 - Inno Setup
+
+## Release
+
+The CI workflow validates pushes and pull requests targeting `main`.
+Windows releases are built only from tags matching `vX.Y.Z`.
+
+1. Update the version in `package.json` and `package-lock.json`.
+2. Commit or merge the release changes.
+3. Create the matching tag on that commit.
+4. Push the tag.
+
+```powershell
+git tag v1.1.0
+git push origin v1.1.0
+```
+
+The release workflow checks out the exact commit referenced by the tag. The
+tag version must match `package.json`, and the tagged commit must be part of
+the `main` branch history.
 
 ## Local development data
 

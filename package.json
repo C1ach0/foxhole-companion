@@ -1,24 +1,29 @@
 {
   "name": "foxpile-companion",
   "productName": "Foxpile Companion",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "Foxpile Companion watches Foxhole save files and syncs metadata to the Foxpile API",
   "license": "ISC",
   "author": "C1ach0",
   "type": "module",
-  "main": "index.js",
-  "bin": "index.js",
+  "main": "index.ts",
+  "bin": "index.ts",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js --debug",
+    "start": "tsx index.ts",
+    "dev": "tsx index.ts --debug",
     "build": "npm run build:windows",
     "build:windows": "node tools/build-windows.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "esbuild": "^0.25.5",
+    "@types/minimist": "^1.2.5",
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.28.1",
     "postject": "^1.0.0-alpha.6",
-    "rcedit": "^5.0.2"
+    "rcedit": "^5.0.2",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.0"
   },
   "dependencies": {
     "chokidar": "^5.0.0",

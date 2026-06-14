@@ -4,7 +4,6 @@
 #endif
 #define AppPublisher "C1ach0"
 #define AppExeName "Foxpile Companion.exe"
-#define AppPayloadExeName "Foxpile Companion.core.exe"
 #define AppUpdaterExeName "Foxpile Companion Updater.exe"
 #define AppUserModelID "C1ach0.FoxpileCompanion"
 
@@ -42,9 +41,13 @@ Name: "desktopicon"; Description: "Create a &desktop icon"; Flags: unchecked
 
 [Files]
 Source: "..\dist\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\dist\{#AppPayloadExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\{#AppUpdaterExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\dist\traybin\*"; DestDir: "{app}\traybin"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+Type: files; Name: "{app}\Foxpile Companion.core.exe"
+Type: files; Name: "{app}\traybin\tray_darwin_release"
+Type: files; Name: "{app}\traybin\tray_linux_release"
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; AppUserModelID: "{#AppUserModelID}"
