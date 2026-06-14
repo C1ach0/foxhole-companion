@@ -3,6 +3,7 @@ import { createReadStream } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { SAVE_DIR } from "./config.js";
+import { isSupportedSaveFileName } from "./saveFileNames.js";
 
 export class SaveDirectoryMissingError extends Error {
   constructor() {
@@ -25,6 +26,10 @@ export async function calculateFileHash(filePath) {
 
 export async function getSaveFileInfo(file) {
   const filePath = path.isAbsolute(file) ? file : path.join(SAVE_DIR, file);
+  const fileName = path.basename(filePath);
+  if (!isSupportedSaveFileName(fileName)) {
+    return null;
+  }
   const stat = await fs.stat(filePath);
 
   if (!stat.isFile()) {
@@ -32,9 +37,9 @@ export async function getSaveFileInfo(file) {
   }
 
   return {
-    file: path.basename(filePath),
+    file: fileName,
     filePath,
-    name: path.basename(filePath),
+    name: fileName,
     size: stat.size,
     modifiedAt: stat.mtime,
     hash: await calculateFileHash(filePath),
@@ -43,7 +48,13 @@ export async function getSaveFileInfo(file) {
 
 export async function listSaveFiles() {
   try {
-    const files = await fs.readdir(SAVE_DIR);
+    const files = (await fs.readdir(SAVE_DIR))
+      .filter(isSupportedSaveFileName)
+      .sort((left, right) => {
+        const leftMapData = /_MapData\.sav$/i.test(left);
+        const rightMapData = /_MapData\.sav$/i.test(right);
+        return Number(rightMapData) - Number(leftMapData);
+      });
 
     return await Promise.all(
       files.map(async (file) => {

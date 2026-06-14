@@ -66,6 +66,9 @@ async function main() {
     sourcemap: false,
     logLevel: "info",
     packages: "bundle",
+    define: {
+      __FOXPILE_APP_VERSION__: JSON.stringify(packageJson.version),
+    },
   });
 
   await fs.writeFile(
@@ -125,9 +128,16 @@ async function main() {
   });
 
   if (!skipInstaller) {
-    await run("iscc", [path.join(rootDir, "installer", "FoxpileCompanion.iss")], {
-      cwd: rootDir,
-    });
+    await run(
+      "iscc",
+      [
+        `/DAppVersion=${packageJson.version}`,
+        path.join(rootDir, "installer", "FoxpileCompanion.iss"),
+      ],
+      {
+        cwd: rootDir,
+      },
+    );
   } else {
     console.log("Skipping Inno Setup installer build");
   }

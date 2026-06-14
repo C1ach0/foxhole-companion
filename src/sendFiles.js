@@ -5,6 +5,7 @@ import {
   COMPANION_ID,
   COMPANION_SECRET,
 } from './config.js';
+import { assertSaveFileSize } from './uploadLimits.js';
 
 function buildSignaturePayload(fileInfo, eventType, timestamp, nonce) {
   return [
@@ -23,6 +24,8 @@ export async function syncSaveFileMetadata(fileInfo, eventType) {
   if (!COMPANION_SECRET) {
     throw new Error('FOXPILE_COMPANION_SECRET is missing');
   }
+
+  assertSaveFileSize(fileInfo);
 
   const timestamp = String(Date.now());
   const nonce = crypto.randomUUID();
@@ -58,7 +61,7 @@ export async function syncSaveFileMetadata(fileInfo, eventType) {
     const errorBody = await response.text();
 
     throw new Error(
-      `API returned ${response.status} ${response.statusText}: ${errorBody}`
+      `API returned ${response.status} ${response.statusText}: ${errorBody.slice(0, 1000)}`
     );
   }
 }

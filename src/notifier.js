@@ -30,6 +30,19 @@ public static class FoxpileAppUserModelIdNative {
 }
 `;
 const TOAST_COMMAND = Buffer.from(TOAST_SCRIPT, "utf16le").toString("base64");
+const CONFIRM_SCRIPT = `
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName PresentationFramework
+$result = [System.Windows.MessageBox]::Show(
+  $env:FOXPILE_CONFIRM_MESSAGE,
+  $env:FOXPILE_CONFIRM_TITLE,
+  [System.Windows.MessageBoxButton]::YesNo,
+  [System.Windows.MessageBoxImage]::Information
+)
+if ($result -eq [System.Windows.MessageBoxResult]::Yes) { exit 0 }
+exit 1
+`;
+const CONFIRM_COMMAND = Buffer.from(CONFIRM_SCRIPT, "utf16le").toString("base64");
 
 function showConsoleNotification(title, message) {
   console.log(`${APP_NAME}: ${title} - ${message}`);
@@ -95,4 +108,40 @@ export function notify(title, message) {
 
   void showWindowsToast(title, message);
   return true;
+}
+
+export function confirm(title, message) {
+  if (process.platform !== "win32") {
+    showConsoleNotification(title, message);
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    const child = spawn(
+      "powershell.exe",
+      [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-WindowStyle",
+        "Hidden",
+        "-EncodedCommand",
+        CONFIRM_COMMAND,
+      ],
+      {
+        env: {
+          ...process.env,
+          FOXPILE_CONFIRM_TITLE: title,
+          FOXPILE_CONFIRM_MESSAGE: message,
+        },
+        stdio: "ignore",
+        windowsHide: true,
+      },
+    );
+
+    child.on("error", () => resolve(false));
+    child.on("close", (code) => resolve(code === 0));
+  });
 }

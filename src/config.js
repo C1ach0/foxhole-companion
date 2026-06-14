@@ -11,6 +11,11 @@ import { resolveAssetPath } from "./assets.js";
 
 export const APP_NAME = "Foxpile Companion";
 export const APP_USER_MODEL_ID = "C1ach0.FoxpileCompanion";
+export const APP_VERSION =
+  typeof __FOXPILE_APP_VERSION__ === "undefined"
+    ? "0.0.0-dev"
+    : __FOXPILE_APP_VERSION__;
+export const UPDATE_REPOSITORY = "C1ach0/foxhole-companion";
 
 function pickConfigValue(envName, builtValue, fallback) {
   if (process.env[envName] !== undefined && process.env[envName] !== "") {

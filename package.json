@@ -1,7 +1,7 @@
 {
   "name": "foxpile-companion",
   "productName": "Foxpile Companion",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Foxpile Companion watches Foxhole save files and syncs metadata to the Foxpile API",
   "license": "ISC",
   "author": "C1ach0",
@@ -13,7 +13,7 @@
     "dev": "node index.js --debug",
     "build": "npm run build:windows",
     "build:windows": "node tools/build-windows.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test test/watcher.test.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.5",

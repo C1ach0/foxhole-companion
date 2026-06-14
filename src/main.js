@@ -1,11 +1,13 @@
 import minimist from "minimist";
 
-import { createTray } from './tray.js';
+import { closeTray, createTray } from './tray.js';
 
 import { APP_NAME, CHECK_INTERVAL } from './config.js';
 import { notify } from './notifier.js';
 import { isGameRunning } from './gameDetector.js';
 import { startWatcher, stopWatcher } from './watcher.js';
+import { logError, logInfo } from './logger.js';
+import { checkForUpdates, notifyCompletedUpdate } from "./updater.js";
 
 let gameRunning = false;
 let checking = false;
@@ -23,6 +25,7 @@ async function handleGameStarted() {
   console.log(
     `${new Date().toISOString()} - Foxhole detected`
   );
+  logInfo("Foxhole detected");
 
   await startWatcher();
 }
@@ -33,6 +36,7 @@ async function handleGameStopped() {
   console.log(
     `${new Date().toISOString()} - Foxhole closed`
   );
+  logInfo("Foxhole closed");
 
   await stopWatcher();
 
@@ -61,6 +65,7 @@ async function checkProcesses() {
     }
   } catch (error) {
     console.error(error);
+    logError("Process check failed", error);
   } finally {
     checking = false;
   }
@@ -68,6 +73,7 @@ async function checkProcesses() {
 
 async function main() {
   await createTray({ debug: debugMode });
+  await notifyCompletedUpdate();
 
   if (debugMode) {
     console.log(`${APP_NAME} debug mode enabled`);
@@ -75,10 +81,20 @@ async function main() {
 
   await checkProcesses();
 
+  const updateStarted = await checkForUpdates();
+  if (updateStarted) {
+    await stopWatcher();
+    closeTray();
+    process.exit(0);
+  }
+
   setInterval(
     checkProcesses,
     CHECK_INTERVAL
   );
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(error);
+  logError("Companion startup failed", error);
+});

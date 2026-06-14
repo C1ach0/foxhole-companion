@@ -156,3 +156,12 @@ export async function clearDiscordUser() {
   await clearDiscordConnection();
   await syncDiscordMenuItem();
 }
+
+export function closeTray() {
+  if (!tray) {
+    return;
+  }
+
+  tray.kill(false);
+  tray = null;
+}

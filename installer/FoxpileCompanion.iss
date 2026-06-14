@@ -1,5 +1,7 @@
 #define AppName "Foxpile Companion"
-#define AppVersion "1.0.0"
+#ifndef AppVersion
+  #define AppVersion "0.0.0"
+#endif
 #define AppPublisher "C1ach0"
 #define AppExeName "Foxpile Companion.exe"
 #define AppPayloadExeName "Foxpile Companion.core.exe"
