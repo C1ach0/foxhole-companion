@@ -24,7 +24,21 @@ import {
 const RELEASE_API_URL = `https://api.github.com/repos/${UPDATE_REPOSITORY}/releases/latest`;
 const UPDATE_DIR = path.join(getAppDataDir(), "updates");
 const UPDATE_RESULT_MARKER = path.join(UPDATE_DIR, "installed.json");
+const RELEASE_CHECK_TIMEOUT_MS = 20_000;
 let lastNotifiedVersion: string | null = null;
+
+export function isTransientUpdateCheckError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  if (error.name === "TimeoutError" || error.name === "AbortError") {
+    return true;
+  }
+
+  return error instanceof TypeError && /fetch failed/i.test(error.message);
+}
+
 async function fetchLatestRelease(): Promise<GitHubRelease> {
   const response = await fetch(RELEASE_API_URL, {
     headers: {
@@ -32,7 +46,7 @@ async function fetchLatestRelease(): Promise<GitHubRelease> {
       "User-Agent": `Foxpile-Companion/${APP_VERSION}`,
       "X-GitHub-Api-Version": "2026-03-10",
     },
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(RELEASE_CHECK_TIMEOUT_MS),
   });
 
   if (!response.ok) {
@@ -281,11 +295,21 @@ export async function checkForUpdates({
     logInfo("Companion update installer started", { latestVersion });
     return true;
   } catch (error) {
-    logError("Companion update check failed", error);
+    if (isTransientUpdateCheckError(error)) {
+      logInfo("Companion update check deferred", {
+        reason: error instanceof Error ? error.message : String(error),
+        timeoutMs: RELEASE_CHECK_TIMEOUT_MS,
+      });
+    } else {
+      logError("Companion update check failed", error);
+    }
+
     if (manual) {
       notify(
         APP_NAME,
-        "Unable to check for updates. See the logs for details.",
+        isTransientUpdateCheckError(error)
+          ? "Unable to reach the update service. Please try again shortly."
+          : "Unable to check for updates. See the logs for details.",
       );
     }
     return false;

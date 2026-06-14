@@ -13,6 +13,7 @@ import {
 import { syncSaveFileMetadata } from "../src/saves/sendFiles.js";
 import {
   buildUpdaterArguments,
+  isTransientUpdateCheckError,
   parseSha256Digest,
 } from "../src/updates/updater.js";
 
@@ -173,4 +174,21 @@ test("requires a valid GitHub SHA-256 release asset digest", () => {
   assert.equal(parseSha256Digest(`sha256:${digest}`), digest);
   assert.throws(() => parseSha256Digest(undefined), /SHA-256 digest/);
   assert.throws(() => parseSha256Digest("sha256:not-a-hash"), /SHA-256 digest/);
+});
+
+test("treats update service timeouts as transient failures", () => {
+  assert.equal(
+    isTransientUpdateCheckError(
+      new DOMException("The operation was aborted due to timeout", "TimeoutError"),
+    ),
+    true,
+  );
+  assert.equal(
+    isTransientUpdateCheckError(new TypeError("fetch failed")),
+    true,
+  );
+  assert.equal(
+    isTransientUpdateCheckError(new Error("Release has no installer")),
+    false,
+  );
 });
