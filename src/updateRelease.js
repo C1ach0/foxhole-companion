@@ -18,9 +18,11 @@ export function compareVersions(left, right) {
 }
 
 export function selectWindowsInstaller(release, repository) {
+  const installerName = /^foxpile[ ._-]+companion[ ._-]+setup\.exe$/i;
+
   return release?.assets?.find(
     (asset) =>
-      asset.name === "Foxpile Companion Setup.exe" &&
+      installerName.test(asset.name || "") &&
       asset.browser_download_url?.startsWith(
         `https://github.com/${repository}/releases/download/`,
       ),

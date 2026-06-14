@@ -30,19 +30,43 @@ public static class FoxpileAppUserModelIdNative {
 }
 `;
 const TOAST_COMMAND = Buffer.from(TOAST_SCRIPT, "utf16le").toString("base64");
-const CONFIRM_SCRIPT = `
+const ACTION_TOAST_SCRIPT = `
 $ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName PresentationFramework
-$result = [System.Windows.MessageBox]::Show(
-  $env:FOXPILE_CONFIRM_MESSAGE,
-  $env:FOXPILE_CONFIRM_TITLE,
-  [System.Windows.MessageBoxButton]::YesNo,
-  [System.Windows.MessageBoxImage]::Information
-)
-if ($result -eq [System.Windows.MessageBoxResult]::Yes) { exit 0 }
-exit 1
+$ProgressPreference = 'SilentlyContinue'
+try {
+  Add-Type -AssemblyName System.Runtime.WindowsRuntime
+  Add-Type -TypeDefinition @"
+using System.Runtime.InteropServices;
+public static class FoxpileActionAppUserModelIdNative {
+  [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  public static extern int SetCurrentProcessExplicitAppUserModelID(string appID);
+}
+"@ -ErrorAction Stop | Out-Null
+  [FoxpileActionAppUserModelIdNative]::SetCurrentProcessExplicitAppUserModelID($env:FOXPILE_APP_USER_MODEL_ID) | Out-Null
+  [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+  [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime] | Out-Null
+
+  $xml = [Windows.Data.Xml.Dom.XmlDocument]::new()
+  $title = [System.Security.SecurityElement]::Escape($env:FOXPILE_TOAST_TITLE)
+  $message = [System.Security.SecurityElement]::Escape($env:FOXPILE_TOAST_MESSAGE)
+  $action = [System.Security.SecurityElement]::Escape($env:FOXPILE_TOAST_ACTION)
+  $uri = [System.Security.SecurityElement]::Escape($env:FOXPILE_TOAST_URI)
+  $xml.LoadXml("<toast duration='long'><visual><binding template='ToastGeneric'><text>$title</text><text>$message</text></binding></visual><actions><action content='$action' arguments='$uri' activationType='protocol'/></actions></toast>")
+
+  $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+  $toast.ExpirationTime = [DateTimeOffset]::Now.AddHours(12)
+  $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($env:FOXPILE_APP_USER_MODEL_ID)
+  $notifier.Show($toast)
+  exit 0
+} catch {
+  Write-Error ("Action toast notification failed: {0}" -f $_.Exception.Message)
+  exit 1
+}
 `;
-const CONFIRM_COMMAND = Buffer.from(CONFIRM_SCRIPT, "utf16le").toString("base64");
+const ACTION_TOAST_COMMAND = Buffer.from(
+  ACTION_TOAST_SCRIPT,
+  "utf16le",
+).toString("base64");
 
 function showConsoleNotification(title, message) {
   console.log(`${APP_NAME}: ${title} - ${message}`);
@@ -110,13 +134,13 @@ export function notify(title, message) {
   return true;
 }
 
-export function confirm(title, message) {
+export function notifyAction(title, message, actionLabel, uri) {
   if (process.platform !== "win32") {
     showConsoleNotification(title, message);
-    return Promise.resolve(false);
+    return false;
   }
 
-  return new Promise((resolve) => {
+  void new Promise((resolve) => {
     const child = spawn(
       "powershell.exe",
       [
@@ -128,20 +152,27 @@ export function confirm(title, message) {
         "-WindowStyle",
         "Hidden",
         "-EncodedCommand",
-        CONFIRM_COMMAND,
+        ACTION_TOAST_COMMAND,
       ],
       {
         env: {
           ...process.env,
-          FOXPILE_CONFIRM_TITLE: title,
-          FOXPILE_CONFIRM_MESSAGE: message,
+          FOXPILE_APP_USER_MODEL_ID: APP_USER_MODEL_ID,
+          FOXPILE_TOAST_TITLE: title,
+          FOXPILE_TOAST_MESSAGE: message,
+          FOXPILE_TOAST_ACTION: actionLabel,
+          FOXPILE_TOAST_URI: uri,
         },
-        stdio: "ignore",
+        stdio: ["ignore", "ignore", "pipe"],
         windowsHide: true,
       },
     );
 
     child.on("error", () => resolve(false));
+    child.stderr?.on("data", (chunk) => {
+      console.error(`Windows action toast failed: ${chunk.toString().trim()}`);
+    });
     child.on("close", (code) => resolve(code === 0));
   });
+  return true;
 }

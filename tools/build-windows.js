@@ -15,12 +15,16 @@ const seaConfigPath = path.join(distDir, "sea-config.json");
 const seaBlobPath = path.join(distDir, "foxpile-companion.blob");
 const payloadExePath = path.join(distDir, "Foxpile Companion.core.exe");
 const launcherExePath = path.join(distDir, "Foxpile Companion.exe");
+const updaterExePath = path.join(distDir, "Foxpile Companion Updater.exe");
 const packageJsonPath = path.join(rootDir, "package.json");
 const traybinSource = path.join(path.dirname(require.resolve("systray2/package.json")), "traybin");
 const traybinTarget = path.join(distDir, "traybin");
 const iconPath = path.join(rootDir, "assets", "foxpile-icon.ico");
 const postjectCli = path.join(path.dirname(require.resolve("postject/package.json")), "dist", "cli.js");
 const launcherSource = path.join(rootDir, "tools", "windows-launcher.go");
+const updaterSource = path.join(rootDir, "tools", "windows-updater.go");
+const goVersionInfoPackage =
+  "github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0";
 const skipInstaller =
   process.env.FOXPILE_SKIP_INSTALLER === "1" || process.argv.includes("--skip-installer");
 
@@ -44,8 +48,102 @@ function run(command, args, options = {}) {
   });
 }
 
+async function buildGoExecutable({
+  source,
+  output,
+  buildName,
+  version,
+  productName,
+  author,
+  description,
+  internalName,
+  originalFilename,
+}) {
+  const buildDir = path.join(distDir, `.build-${buildName}`);
+  const manifestPath = path.join(buildDir, "app.manifest");
+  const resourcePath = path.join(buildDir, "resource.syso");
+  const versionInfoPath = path.join(buildDir, "versioninfo.json");
+
+  await fs.mkdir(buildDir, { recursive: true });
+  await fs.copyFile(source, path.join(buildDir, "main.go"));
+  await fs.writeFile(
+    path.join(buildDir, "go.mod"),
+    `module foxpile.local/${buildName}\n\ngo 1.25\n`,
+    "utf8",
+  );
+  await fs.writeFile(
+    manifestPath,
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="asInvoker" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+</assembly>
+`,
+    "utf8",
+  );
+  await fs.writeFile(versionInfoPath, "{}\n", "utf8");
+
+  await run(
+    "go",
+    [
+      "run",
+      goVersionInfoPackage,
+      "-64",
+      "-propagate-ver-strings",
+      "-file-version",
+      version,
+      "-product-version",
+      version,
+      "-company",
+      author,
+      "-copyright",
+      `Copyright (C) 2026 ${author}`,
+      "-description",
+      description,
+      "-internal-name",
+      internalName,
+      "-original-name",
+      originalFilename,
+      "-product-name",
+      productName,
+      "-icon",
+      iconPath,
+      "-manifest",
+      manifestPath,
+      "-o",
+      resourcePath,
+      versionInfoPath,
+    ],
+    { cwd: buildDir },
+  );
+
+  await run(
+    "go",
+    [
+      "build",
+      "-trimpath",
+      "-ldflags",
+      "-H windowsgui",
+      "-o",
+      output,
+      ".",
+    ],
+    { cwd: buildDir },
+  );
+}
+
 async function main() {
   const packageJson = JSON.parse(await fs.readFile(packageJsonPath, "utf8"));
+  const versionStrings = {
+    CompanyName: packageJson.author,
+    LegalCopyright: `Copyright (C) 2026 ${packageJson.author}`,
+    ProductName: packageJson.productName,
+  };
 
   await fs.rm(distDir, { recursive: true, force: true });
   await fs.mkdir(distDir, { recursive: true });
@@ -103,11 +201,10 @@ async function main() {
     "product-version": packageJson.version,
     "requested-execution-level": "asInvoker",
     "version-string": {
-      CompanyName: packageJson.author,
+      ...versionStrings,
       FileDescription: packageJson.productName,
       InternalName: "foxpile-companion",
-      OriginalFilename: "Foxpile Companion.exe",
-      ProductName: packageJson.productName,
+      OriginalFilename: "Foxpile Companion.core.exe",
     },
   });
 
@@ -115,16 +212,37 @@ async function main() {
     cwd: rootDir,
   });
 
-  await run("go", [
-    "build",
-    "-trimpath",
-    "-ldflags",
-    "-H windowsgui",
-    "-o",
-    launcherExePath,
-    launcherSource,
-  ], {
-    cwd: rootDir,
+  await buildGoExecutable({
+    source: launcherSource,
+    output: launcherExePath,
+    buildName: "launcher",
+    version: packageJson.version,
+    productName: packageJson.productName,
+    author: packageJson.author,
+    description: `${packageJson.productName} Launcher`,
+    internalName: "foxpile-companion-launcher",
+    originalFilename: "Foxpile Companion.exe",
+  });
+
+  await buildGoExecutable({
+    source: updaterSource,
+    output: updaterExePath,
+    buildName: "updater",
+    version: packageJson.version,
+    productName: packageJson.productName,
+    author: packageJson.author,
+    description: `${packageJson.productName} Updater`,
+    internalName: "foxpile-companion-updater",
+    originalFilename: "Foxpile Companion Updater.exe",
+  });
+
+  await fs.rm(path.join(distDir, ".build-launcher"), {
+    recursive: true,
+    force: true,
+  });
+  await fs.rm(path.join(distDir, ".build-updater"), {
+    recursive: true,
+    force: true,
   });
 
   if (!skipInstaller) {

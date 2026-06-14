@@ -81,8 +81,8 @@ function buildMenu() {
     SysTray.separator,
     {
       title: `Version ${APP_VERSION}`,
-      tooltip: `${APP_NAME} ${APP_VERSION}`,
-      enabled: false,
+      tooltip: "Click to check for updates",
+      enabled: true,
     },
     SysTray.separator,
     {
@@ -93,7 +93,10 @@ function buildMenu() {
   ];
 }
 
-export async function createTray({ debug = false } = {}) {
+export async function createTray({
+  debug = false,
+  onCheckForUpdates = null,
+} = {}) {
   trayClosing = false;
   const trayBinary = await ensureTrayBinary();
   logInfo("Starting system tray", {
@@ -130,6 +133,11 @@ export async function createTray({ debug = false } = {}) {
 
     if (title === "Support us") {
       await open("https://ko-fi.com/c1ach0");
+      return;
+    }
+
+    if (title === `Version ${APP_VERSION}`) {
+      await onCheckForUpdates?.();
       return;
     }
 
@@ -185,7 +193,7 @@ export async function createTray({ debug = false } = {}) {
     }
 
     if (!trayClosing) {
-      scheduleTrayRestart({ debug });
+      scheduleTrayRestart({ debug, onCheckForUpdates });
     }
   });
 
@@ -201,7 +209,7 @@ export async function createTray({ debug = false } = {}) {
   return nextTray;
 }
 
-function scheduleTrayRestart({ debug }) {
+function scheduleTrayRestart({ debug, onCheckForUpdates }) {
   if (trayRestartTimer || trayClosing) {
     return;
   }
@@ -215,11 +223,11 @@ function scheduleTrayRestart({ debug }) {
 
   trayRestartTimer = setTimeout(() => {
     trayRestartTimer = null;
-    void createTray({ debug }).catch((error) => {
+    void createTray({ debug, onCheckForUpdates }).catch((error) => {
       logError("System tray restart failed", error, {
         attempt: trayRestartAttempts,
       });
-      scheduleTrayRestart({ debug });
+      scheduleTrayRestart({ debug, onCheckForUpdates });
     });
   }, delayMs);
 }

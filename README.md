@@ -38,13 +38,14 @@ Optional values:
 ## Build
 
 - `npm run dev` launches Foxpile Companion in debug mode from `cmd`
-- `npm run build:windows` builds the Windows GUI launcher, SEA payload, and installer
+- `npm run build:windows` builds the Windows GUI launcher, updater, SEA payload, and installer
 
 The Windows build uses:
 
 - Node 24
 - Node SEA
 - a small GUI launcher
+- a standalone Windows updater
 - rcedit
 - Inno Setup
 

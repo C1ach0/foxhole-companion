@@ -82,6 +82,7 @@ export const SAVE_DIR = path.join(
 );
 
 export const CHECK_INTERVAL = 3000;
+export const UPDATE_CHECK_INTERVAL = 30 * 60 * 1000;
 
 export const ICON_PATH = resolveAssetPath(
   process.platform === "win32" ? "foxpile-icon.ico" : "foxpile-icon.png",

@@ -2,7 +2,11 @@ import minimist from "minimist";
 
 import { closeTray, createTray } from './tray.js';
 
-import { APP_NAME, CHECK_INTERVAL } from './config.js';
+import {
+  APP_NAME,
+  CHECK_INTERVAL,
+  UPDATE_CHECK_INTERVAL,
+} from './config.js';
 import { notify } from './notifier.js';
 import { isGameRunning } from './gameDetector.js';
 import { startWatcher, stopWatcher } from './watcher.js';
@@ -15,6 +19,7 @@ import {
 
 let gameRunning = false;
 let checking = false;
+let checkingForUpdates = false;
 const argv = minimist(process.argv.slice(2), {
   boolean: ["debug"],
   alias: {
@@ -22,6 +27,11 @@ const argv = minimist(process.argv.slice(2), {
   },
 });
 const debugMode = Boolean(argv.debug);
+const isInstallUpdateActivation = (value) =>
+  String(value).toLowerCase().startsWith(
+    "foxpile-companion://install-update",
+  );
+const installUpdateRequested = argv._.some(isInstallUpdateActivation);
 
 async function handleGameStarted() {
   gameRunning = true;
@@ -75,13 +85,49 @@ async function checkProcesses() {
   }
 }
 
+async function checkUpdates({
+  manual = false,
+  installNow = false,
+} = {}) {
+  if (checkingForUpdates) {
+    if (manual) {
+      notify(APP_NAME, "An update check is already running.");
+    }
+    return;
+  }
+
+  checkingForUpdates = true;
+  try {
+    const updateStarted = await checkForUpdates({ manual, installNow });
+    if (!updateStarted) {
+      return;
+    }
+
+    await stopWatcher();
+    closeTray();
+    process.exit(0);
+  } finally {
+    checkingForUpdates = false;
+  }
+}
+
 async function main() {
-  const isPrimaryInstance = await acquireSingleInstance();
+  const isPrimaryInstance = await acquireSingleInstance(
+    undefined,
+    async ({ args = [] } = {}) => {
+      if (args.some(isInstallUpdateActivation)) {
+        await checkUpdates({ manual: true, installNow: true });
+      }
+    },
+  );
   if (!isPrimaryInstance) {
     return;
   }
 
-  await createTray({ debug: debugMode });
+  await createTray({
+    debug: debugMode,
+    onCheckForUpdates: () => checkUpdates({ manual: true }),
+  });
   await notifyCompletedUpdate();
 
   if (debugMode) {
@@ -90,17 +136,19 @@ async function main() {
 
   await checkProcesses();
 
-  const updateStarted = await checkForUpdates();
-  if (updateStarted) {
-    await stopWatcher();
-    closeTray();
-    process.exit(0);
-  }
+  await checkUpdates({
+    manual: installUpdateRequested,
+    installNow: installUpdateRequested,
+  });
 
   setInterval(
     checkProcesses,
     CHECK_INTERVAL
   );
+  setInterval(checkUpdates, UPDATE_CHECK_INTERVAL);
+  logInfo("Automatic update checks scheduled", {
+    intervalMs: UPDATE_CHECK_INTERVAL,
+  });
 }
 
 process.once("exit", releaseSingleInstance);

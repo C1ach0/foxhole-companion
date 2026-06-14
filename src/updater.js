@@ -10,7 +10,7 @@ import {
   getAppDataDir,
 } from "./config.js";
 import { isSeaApplication } from "./runtime.js";
-import { confirm, notify } from "./notifier.js";
+import { notify, notifyAction } from "./notifier.js";
 import { logError, logInfo } from "./logger.js";
 import {
   compareVersions,
@@ -20,6 +20,7 @@ import {
 const RELEASE_API_URL = `https://api.github.com/repos/${UPDATE_REPOSITORY}/releases/latest`;
 const UPDATE_DIR = path.join(getAppDataDir(), "updates");
 const UPDATE_RESULT_MARKER = path.join(UPDATE_DIR, "installed.json");
+let lastNotifiedVersion = null;
 async function fetchLatestRelease() {
   const response = await fetch(RELEASE_API_URL, {
     headers: {
@@ -66,54 +67,58 @@ function getLauncherPath() {
   return path.join(path.dirname(process.execPath), "Foxpile Companion.exe");
 }
 
-async function startDetachedInstaller(installerPath, version) {
-  const script = `
-$ErrorActionPreference = 'Stop'
-Wait-Process -Id $env:FOXPILE_PARENT_PID -ErrorAction SilentlyContinue
-$exitCode = -1
-try {
-  $process = Start-Process -FilePath $env:FOXPILE_INSTALLER -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CLOSEAPPLICATIONS' -Wait -PassThru
-  $exitCode = $process.ExitCode
-} catch {
-  $exitCode = -1
+function getUpdaterPath() {
+  return path.join(
+    path.dirname(process.execPath),
+    "Foxpile Companion Updater.exe",
+  );
 }
-$marker = @{
-  version = $env:FOXPILE_UPDATE_VERSION
-  installedAt = [DateTime]::UtcNow.ToString('o')
-  success = ($exitCode -eq 0)
-  exitCode = $exitCode
-} | ConvertTo-Json -Compress
-[System.IO.File]::WriteAllText($env:FOXPILE_SUCCESS_MARKER, $marker)
-Start-Process -FilePath $env:FOXPILE_LAUNCHER
-`;
-  const encoded = Buffer.from(script, "utf16le").toString("base64");
+
+async function prepareUpdater(version) {
+  await fs.mkdir(UPDATE_DIR, { recursive: true });
+  const updaterName = `Foxpile-Companion-Updater-${version}.exe`;
+  const updaterPath = path.join(UPDATE_DIR, updaterName);
+
+  for (const entry of await fs.readdir(UPDATE_DIR)) {
+    if (
+      entry.startsWith("Foxpile-Companion-Updater-") &&
+      entry.endsWith(".exe") &&
+      entry !== updaterName
+    ) {
+      await fs.rm(path.join(UPDATE_DIR, entry), { force: true });
+    }
+  }
+
+  await fs.copyFile(getUpdaterPath(), updaterPath);
+  return updaterPath;
+}
+
+async function startDetachedInstaller(installerPath, version) {
+  const updaterPath = await prepareUpdater(version);
   const child = spawn(
-    "powershell.exe",
+    updaterPath,
     [
-      "-NoLogo",
-      "-NoProfile",
-      "-NonInteractive",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-WindowStyle",
-      "Hidden",
-      "-EncodedCommand",
-      encoded,
+      "--parent-pid",
+      String(process.pid),
+      "--installer",
+      installerPath,
+      "--version",
+      version,
+      "--marker",
+      UPDATE_RESULT_MARKER,
+      "--launcher",
+      getLauncherPath(),
     ],
     {
       detached: true,
-      env: {
-        ...process.env,
-        FOXPILE_PARENT_PID: String(process.pid),
-        FOXPILE_INSTALLER: installerPath,
-        FOXPILE_UPDATE_VERSION: version,
-        FOXPILE_SUCCESS_MARKER: UPDATE_RESULT_MARKER,
-        FOXPILE_LAUNCHER: getLauncherPath(),
-      },
       stdio: "ignore",
       windowsHide: true,
     },
   );
+  await new Promise((resolve, reject) => {
+    child.once("spawn", resolve);
+    child.once("error", reject);
+  });
   child.unref();
 }
 
@@ -140,7 +145,10 @@ export async function notifyCompletedUpdate() {
   }
 }
 
-export async function checkForUpdates() {
+export async function checkForUpdates({
+  manual = false,
+  installNow = false,
+} = {}) {
   if (
     process.platform !== "win32" ||
     !isSeaApplication() ||
@@ -157,6 +165,12 @@ export async function checkForUpdates() {
         currentVersion: APP_VERSION,
         latestVersion: latestVersion || null,
       });
+      if (manual) {
+        notify(
+          APP_NAME,
+          `You already have the latest version (${APP_VERSION}).`,
+        );
+      }
       return false;
     }
 
@@ -165,16 +179,25 @@ export async function checkForUpdates() {
       throw new Error(`Release ${release.tag_name} has no Windows installer`);
     }
 
-    notify(
-      APP_NAME,
-      `Update ${latestVersion} is available. Confirmation is required to install it.`,
-    );
-    const accepted = await confirm(
-      `${APP_NAME} update`,
-      `Version ${latestVersion} is available (installed: ${APP_VERSION}). Install it now?`,
-    );
-    if (!accepted) {
-      logInfo("Companion update declined", { latestVersion });
+    if (!installNow) {
+      if (latestVersion === lastNotifiedVersion && !manual) {
+        logInfo("Companion update notification already displayed", {
+          latestVersion,
+        });
+        return false;
+      }
+
+      notifyAction(
+        `${APP_NAME} update available`,
+        `Version ${latestVersion} is available (installed: ${APP_VERSION}).`,
+        "Install now",
+        "foxpile-companion://install-update",
+      );
+      lastNotifiedVersion = latestVersion;
+      logInfo("Companion update notification displayed", {
+        latestVersion,
+        manual,
+      });
       return false;
     }
 
@@ -188,6 +211,12 @@ export async function checkForUpdates() {
     return true;
   } catch (error) {
     logError("Companion update check failed", error);
+    if (manual) {
+      notify(
+        APP_NAME,
+        "Unable to check for updates. See the logs for details.",
+      );
+    }
     return false;
   }
 }
