@@ -8,6 +8,10 @@ import { isGameRunning } from './gameDetector.js';
 import { startWatcher, stopWatcher } from './watcher.js';
 import { logError, logInfo } from './logger.js';
 import { checkForUpdates, notifyCompletedUpdate } from "./updater.js";
+import {
+  acquireSingleInstance,
+  releaseSingleInstance,
+} from "./singleInstance.js";
 
 let gameRunning = false;
 let checking = false;
@@ -72,6 +76,11 @@ async function checkProcesses() {
 }
 
 async function main() {
+  const isPrimaryInstance = await acquireSingleInstance();
+  if (!isPrimaryInstance) {
+    return;
+  }
+
   await createTray({ debug: debugMode });
   await notifyCompletedUpdate();
 
@@ -93,6 +102,8 @@ async function main() {
     CHECK_INTERVAL
   );
 }
+
+process.once("exit", releaseSingleInstance);
 
 main().catch((error) => {
   console.error(error);

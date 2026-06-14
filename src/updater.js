@@ -9,6 +9,7 @@ import {
   UPDATE_REPOSITORY,
   getAppDataDir,
 } from "./config.js";
+import { isSeaApplication } from "./runtime.js";
 import { confirm, notify } from "./notifier.js";
 import { logError, logInfo } from "./logger.js";
 import {
@@ -142,7 +143,7 @@ export async function notifyCompletedUpdate() {
 export async function checkForUpdates() {
   if (
     process.platform !== "win32" ||
-    !process.versions.sea ||
+    !isSeaApplication() ||
     APP_VERSION.endsWith("-dev")
   ) {
     return false;

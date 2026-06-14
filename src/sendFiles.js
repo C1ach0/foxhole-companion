@@ -6,6 +6,7 @@ import {
   COMPANION_SECRET,
 } from './config.js';
 import { assertSaveFileSize } from './uploadLimits.js';
+import { isSeaApplication } from "./runtime.js";
 
 function buildSignaturePayload(fileInfo, eventType, timestamp, nonce) {
   return [
@@ -21,7 +22,7 @@ function buildSignaturePayload(fileInfo, eventType, timestamp, nonce) {
 }
 
 export async function syncSaveFileMetadata(fileInfo, eventType) {
-  if (!process.versions.sea) {
+  if (!isSeaApplication()) {
     return {
       skipped: true,
       reason: "local-mode",

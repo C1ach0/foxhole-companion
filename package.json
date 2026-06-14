@@ -13,7 +13,7 @@
     "dev": "node index.js --debug",
     "build": "npm run build:windows",
     "build:windows": "node tools/build-windows.js",
-    "test": "node --test test/watcher.test.js"
+    "test": "node --test test/*.test.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.5",

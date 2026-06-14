@@ -9,12 +9,18 @@ import {
   loadDiscordConnection,
   saveDiscordConnection,
 } from "./discordConnectionStore.js";
+import { logError, logInfo } from "./logger.js";
 
 /** @type {SysTrayImport} */
 const SysTray = SysTrayImport.default ?? SysTrayImport;
 
 /** @type {SysTrayImport} */
 let tray = null;
+let trayRestartTimer = null;
+let trayRestartAttempts = 0;
+let trayClosing = false;
+
+const TRAY_READY_TIMEOUT_MS = 15_000;
 
 const trayState = {
   discordLinked: false,
@@ -88,9 +94,15 @@ function buildMenu() {
 }
 
 export async function createTray({ debug = false } = {}) {
-  await ensureTrayBinary();
+  trayClosing = false;
+  const trayBinary = await ensureTrayBinary();
+  logInfo("Starting system tray", {
+    binary: trayBinary,
+    icon: ICON_PATH,
+    debug,
+  });
 
-  tray = new SysTray({
+  const nextTray = new SysTray({
     menu: {
       icon: ICON_PATH,
       title: APP_NAME,
@@ -100,6 +112,7 @@ export async function createTray({ debug = false } = {}) {
     debug,
     copyDir: false,
   });
+  tray = nextTray;
 
   const storedConnection = await loadDiscordConnection();
   if (storedConnection?.discordUsername) {
@@ -107,7 +120,7 @@ export async function createTray({ debug = false } = {}) {
     trayState.discordUsername = storedConnection.discordUsername;
   }
 
-  tray.onClick(async (action) => {
+  nextTray.onClick(async (action) => {
     const { title } = action.item;
 
     if (title === "Our website") {
@@ -131,17 +144,84 @@ export async function createTray({ debug = false } = {}) {
     }
 
     if (title === "Exit") {
-      tray.kill(false);
+      trayClosing = true;
+      await nextTray.kill(false);
       process.exit(0);
     }
   });
 
-  await tray.ready();
+  await Promise.race([
+    nextTray.ready(),
+    new Promise((_, reject) => {
+      setTimeout(
+        () => reject(new Error("System tray startup timed out")),
+        TRAY_READY_TIMEOUT_MS,
+      );
+    }),
+  ]);
+
+  const trayProcess = nextTray.process;
+  trayProcess?.stderr?.on("data", (data) => {
+    logError("System tray process stderr", String(data).trim(), {
+      pid: trayProcess.pid,
+    });
+  });
+  nextTray.onError((error) => {
+    logError("System tray process error", error, {
+      pid: trayProcess?.pid,
+      binary: nextTray.binPath,
+    });
+  });
+  nextTray.onExit((code, signal) => {
+    logError("System tray process exited", new Error("Tray process stopped"), {
+      pid: trayProcess?.pid,
+      code,
+      signal,
+      closing: trayClosing,
+    });
+
+    if (tray === nextTray) {
+      tray = null;
+    }
+
+    if (!trayClosing) {
+      scheduleTrayRestart({ debug });
+    }
+  });
+
   await syncDiscordMenuItem();
 
-  console.log("Tray ready");
+  trayRestartAttempts = 0;
+  logInfo("System tray ready", {
+    pid: trayProcess?.pid,
+    binary: nextTray.binPath,
+    version: APP_VERSION,
+  });
 
-  return tray;
+  return nextTray;
+}
+
+function scheduleTrayRestart({ debug }) {
+  if (trayRestartTimer || trayClosing) {
+    return;
+  }
+
+  trayRestartAttempts += 1;
+  const delayMs = Math.min(30_000, 1_000 * 2 ** (trayRestartAttempts - 1));
+  logInfo("System tray restart scheduled", {
+    attempt: trayRestartAttempts,
+    delayMs,
+  });
+
+  trayRestartTimer = setTimeout(() => {
+    trayRestartTimer = null;
+    void createTray({ debug }).catch((error) => {
+      logError("System tray restart failed", error, {
+        attempt: trayRestartAttempts,
+      });
+      scheduleTrayRestart({ debug });
+    });
+  }, delayMs);
 }
 
 export async function setDiscordUser(username) {
@@ -164,6 +244,12 @@ export async function clearDiscordUser() {
 }
 
 export function closeTray() {
+  trayClosing = true;
+  if (trayRestartTimer) {
+    clearTimeout(trayRestartTimer);
+    trayRestartTimer = null;
+  }
+
   if (!tray) {
     return;
   }

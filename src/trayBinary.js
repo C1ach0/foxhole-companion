@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { isSeaApplication } from "./runtime.js";
 
 const sourceTrayBinary = path.join(
   process.cwd(),
@@ -23,7 +24,7 @@ export async function ensureTrayBinary() {
     await fs.access(installedTrayBinary);
     return installedTrayBinary;
   } catch {
-    if (process.versions.sea) {
+    if (isSeaApplication()) {
       throw new Error(`Missing tray binary: ${installedTrayBinary}`);
     }
 
