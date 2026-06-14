@@ -2,6 +2,8 @@ name: Build companion
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*.*.*"
 

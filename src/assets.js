@@ -34,7 +34,7 @@ function materializeAsset(assetName, data) {
 export function resolveAssetPath(assetName) {
   const sea = getSeaModule();
 
-  if (!sea?.getAsset) {
+  if (!process.versions.sea || !sea?.getAsset) {
     return path.join(fallbackAssetsDir, assetName);
   }
 

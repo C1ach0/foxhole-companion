@@ -2,7 +2,7 @@ import SysTrayImport from "systray2";
 import open from "open";
 
 import { connectToDiscord } from "./auth.js";
-import { APP_NAME, ICON_PATH } from "./config.js";
+import { APP_NAME, APP_VERSION, ICON_PATH } from "./config.js";
 import { ensureTrayBinary } from "./trayBinary.js";
 import {
   clearDiscordConnection,
@@ -71,6 +71,12 @@ function buildMenu() {
       title: "Support us",
       tooltip: "Support our development",
       enabled: true,
+    },
+    SysTray.separator,
+    {
+      title: `Version ${APP_VERSION}`,
+      tooltip: `${APP_NAME} ${APP_VERSION}`,
+      enabled: false,
     },
     SysTray.separator,
     {

@@ -21,6 +21,13 @@ function buildSignaturePayload(fileInfo, eventType, timestamp, nonce) {
 }
 
 export async function syncSaveFileMetadata(fileInfo, eventType) {
+  if (!process.versions.sea) {
+    return {
+      skipped: true,
+      reason: "local-mode",
+    };
+  }
+
   if (!COMPANION_SECRET) {
     throw new Error('FOXPILE_COMPANION_SECRET is missing');
   }
