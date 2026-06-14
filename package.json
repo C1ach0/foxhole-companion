@@ -1,7 +1,7 @@
 {
   "name": "foxpile-companion",
   "productName": "Foxpile Companion",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Foxpile Companion watches Foxhole save files and syncs metadata to the Foxpile API",
   "license": "ISC",
   "author": "C1ach0",
