@@ -55,7 +55,7 @@ The Windows build uses:
 - TypeScript
 - Node 24
 - Node SEA
-- a GUI subsystem patch applied to the final SEA executable
+- a GUI subsystem patch applied to the final SEA and systray executables
 - a standalone Windows updater
 - rcedit
 - Inno Setup

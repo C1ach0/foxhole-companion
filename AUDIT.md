@@ -13,7 +13,9 @@ Le depot `nodejs-sea-hide-passthrough` n'a volontairement pas ete embarque:
 son executable est un launcher qui demarre un second executable SEA, ce qui
 recreerait l'architecture a deux processus que cette version doit supprimer.
 La modification equivalente est appliquee directement au champ `Subsystem` du
-PE final, apres l'injection `postject`.
+PE final, apres l'injection `postject`. Les executables Windows de `systray2`
+sont egalement convertis en applications GUI pour eviter leur bref affichage
+et toute prise de focus au demarrage.
 
 ## Nouveautes livrees
 
@@ -23,6 +25,7 @@ PE final, apres l'injection `postject`.
 - Bundle `esbuild`, blob SEA, copie du runtime Node, injection `postject`, puis
   conversion du SEA final vers le subsystem Windows GUI.
 - Verification automatique du subsystem GUI et du fuse SEA pendant le build.
+- Verification du subsystem GUI des deux executables `systray2` embarques.
 - Nouvelle tentative automatique de l'injection SEA lorsqu'un scanner Windows
   conserve temporairement le PE apres `rcedit`.
 - Suppression de `tools/windows-launcher.go` et de toute sortie `.core.exe`.

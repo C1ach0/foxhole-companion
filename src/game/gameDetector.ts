@@ -9,13 +9,19 @@ export async function isGameRunning() {
     return false;
   }
 
-  const { stdout } = await execFileAsync("tasklist", [
-    "/FO",
-    "CSV",
-    "/NH",
-    "/FI",
-    `IMAGENAME eq ${GAME_PROCESS}`,
-  ]);
+  const { stdout } = await execFileAsync(
+    "tasklist",
+    [
+      "/FO",
+      "CSV",
+      "/NH",
+      "/FI",
+      `IMAGENAME eq ${GAME_PROCESS}`,
+    ],
+    {
+      windowsHide: true,
+    },
+  );
 
   return stdout
     .split(/\r?\n/)

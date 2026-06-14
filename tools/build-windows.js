@@ -18,6 +18,8 @@ const updaterExePath = path.join(distDir, "Foxpile Companion Updater.exe");
 const packageJsonPath = path.join(rootDir, "package.json");
 const traybinSource = path.join(path.dirname(require.resolve("systray2/package.json")), "traybin");
 const traybinTarget = path.join(distDir, "traybin");
+const trayDebugExePath = path.join(traybinTarget, "tray_windows.exe");
+const trayReleaseExePath = path.join(traybinTarget, "tray_windows_release.exe");
 const iconPath = path.join(rootDir, "assets", "foxpile-icon.ico");
 const postjectCli = path.join(path.dirname(require.resolve("postject/package.json")), "dist", "cli.js");
 const updaterSource = path.join(rootDir, "tools", "windows-updater.go");
@@ -95,7 +97,7 @@ async function createWindowsSea(packageJson, versionStrings) {
   }
 }
 
-async function markAsWindowsGui(executablePath) {
+async function readWindowsSubsystem(executablePath) {
   const executable = await fs.readFile(executablePath);
   const peHeaderOffset = executable.readUInt32LE(0x3c);
 
@@ -112,15 +114,23 @@ async function markAsWindowsGui(executablePath) {
   }
 
   const subsystemOffset = optionalHeaderOffset + 0x44;
+  return {
+    executable,
+    subsystemOffset,
+    subsystem: executable.readUInt16LE(subsystemOffset),
+  };
+}
+
+async function markAsWindowsGui(executablePath) {
+  const { executable, subsystemOffset } =
+    await readWindowsSubsystem(executablePath);
   executable.writeUInt16LE(2, subsystemOffset);
   await fs.writeFile(executablePath, executable);
 }
 
 async function verifyWindowsSea(executablePath) {
   const executable = await fs.readFile(executablePath);
-  const peHeaderOffset = executable.readUInt32LE(0x3c);
-  const optionalHeaderOffset = peHeaderOffset + 4 + 20;
-  const subsystem = executable.readUInt16LE(optionalHeaderOffset + 0x44);
+  const { subsystem } = await readWindowsSubsystem(executablePath);
 
   if (subsystem !== 2) {
     throw new Error(
@@ -130,6 +140,16 @@ async function verifyWindowsSea(executablePath) {
 
   if (!executable.includes(Buffer.from(`${seaFuse}:1`))) {
     throw new Error(`${executablePath} does not contain an injected SEA blob`);
+  }
+}
+
+async function verifyWindowsGui(executablePath) {
+  const { subsystem } = await readWindowsSubsystem(executablePath);
+
+  if (subsystem !== 2) {
+    throw new Error(
+      `${executablePath} is not a Windows GUI executable (subsystem ${subsystem})`,
+    );
   }
 }
 
@@ -236,12 +256,20 @@ async function main() {
   await fs.mkdir(traybinTarget, { recursive: true });
   await fs.copyFile(
     path.join(traybinSource, "tray_windows_release.exe"),
-    path.join(traybinTarget, "tray_windows_release.exe"),
+    trayReleaseExePath,
   );
   await fs.copyFile(
     path.join(traybinSource, "tray_windows_release.exe"),
-    path.join(traybinTarget, "tray_windows.exe"),
+    trayDebugExePath,
   );
+  await Promise.all([
+    markAsWindowsGui(trayReleaseExePath),
+    markAsWindowsGui(trayDebugExePath),
+  ]);
+  await Promise.all([
+    verifyWindowsGui(trayReleaseExePath),
+    verifyWindowsGui(trayDebugExePath),
+  ]);
 
   await esbuild.build({
     entryPoints: [path.join(rootDir, "index.ts")],
