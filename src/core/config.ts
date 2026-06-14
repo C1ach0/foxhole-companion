@@ -17,11 +17,11 @@ export const APP_VERSION =
     : __FOXPILE_APP_VERSION__;
 export const UPDATE_REPOSITORY = "C1ach0/foxhole-companion";
 
-function pickConfigValue<T>(
+function pickConfigValue(
   envName: string,
-  builtValue: T | "" | undefined,
-  fallback: T,
-): string | T {
+  builtValue: string | undefined,
+  fallback: string,
+): string {
   if (process.env[envName] !== undefined && process.env[envName] !== "") {
     return process.env[envName];
   }
@@ -75,7 +75,7 @@ export const COMPANION_SKEW_MS = Number(
   pickConfigValue(
     "FOXPILE_COMPANION_SKEW_MS",
     BUILT_COMPANION_SKEW_MS,
-    300000,
+    "300000",
   ),
 );
 
