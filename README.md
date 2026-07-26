@@ -6,10 +6,12 @@ signed updates to the Foxpile API.
 ## What it does
 
 - watches the Foxhole save directory
-- detects when relevant save files change
+- detects when relevant save files change after startup
 - hashes the files before upload
 - signs every request with companion credentials
 - sends data only to the Foxpile API
+
+On game connection, the companion now primes its cache from the current save files without sending their contents. Only later file changes and new files are uploaded.
 
 ## Trust model
 
