@@ -8,7 +8,6 @@ import type { SaveEventType, SaveFileInfo } from "../core/types.js";
 import { notify } from "../ui/notifier.js";
 import { SaveDirectoryMissingError, getSaveFileInfo, listSaveFiles } from './saveFiles.js';
 import { syncSaveFileMetadata } from './sendFiles.js';
-import { uploadInitialSaveFiles } from './initialUploads.js';
 
 let watcher: FSWatcher | null = null;
 const saveFilesByName = new Map<string, SaveFileInfo>();
@@ -27,36 +26,15 @@ async function initializeSaveFileCache() {
 
     saveFilesByName.clear();
 
-    const uploadedFiles = await uploadInitialSaveFiles(
-      files,
-      syncSaveFileMetadata,
-      {
-        onSuccess(fileInfo) {
-          rememberSaveFile(fileInfo);
-          console.log(`Initial save file uploaded: ${fileInfo.name}`);
-          logInfo("Initial save file uploaded", {
-            name: fileInfo.name,
-            size: fileInfo.size,
-          });
-        },
-        onError(fileInfo, error) {
-          console.error(
-            `Initial upload failed for ${fileInfo.name}; watcher will continue:`,
-            error,
-          );
-          logError(
-            "Initial save file upload failed; watcher continuing",
-            error,
-            {
-              name: fileInfo.name,
-              size: fileInfo.size,
-            },
-          );
-        },
-      },
-    );
+    for (const fileInfo of files) {
+      rememberSaveFile(fileInfo);
+    }
 
-    return uploadedFiles;
+    logInfo("Save file cache initialized", {
+      fileCount: files.length,
+    });
+
+    return files;
   } catch (error) {
     if (
       error instanceof SaveDirectoryMissingError ||
